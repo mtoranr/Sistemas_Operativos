@@ -1,33 +1,42 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 
+#ifdef _WIN32
+    #include <windows.h>
+    // Definimos sleep(segundos) en términos de Sleep(milisegundos)
+    #define sleep(x) Sleep(1000 * (x))
+#else
+    #include <unistd.h>
+#endif
+
+
 /* Constantes del sistema MEGATRONIX */
-#define NUM_FILAS   8       // Número de líneas de la caché
-#define TAM_LINEA   16      // Bytes por línea de caché
-#define TAM_RAM     4096    // 2^12 direcciones de memoria
+#define NUM_FILAS 8  // Número de líneas de la caché
+#define TAM_LINEA 16 // Bytes por línea de caché
+#define TAM_RAM 4096 // 2^12 direcciones de memoria
 
 /* Nombres de ficheros */
-#define FICH_RAM    "CONTENTS_RAM.bin"
+#define FICH_RAM "CONTENTS_RAM.bin"
 #define FICH_ACCESOS "accesos_memoria.txt"
-#define FICH_CACHE  "CONTENTS_CACHE.bin"
+#define FICH_CACHE "CONTENTS_CACHE.bin"
 
-/* Definición de la línea de caché (según enunciado) */
-typedef struct {
-    unsigned char ETQ;              // Etiqueta (Label)
-    unsigned char Data[TAM_LINEA];  // Datos de la línea
+/* Definición de la línea de caché */
+typedef struct
+{
+    unsigned char ETQ;             // Etiqueta (Label)
+    unsigned char Data[TAM_LINEA]; // Datos de la línea
 } T_CACHE_LINE;
 
 /* Variables globales */
 T_CACHE_LINE CACHE[NUM_FILAS];
 unsigned char Simul_RAM[TAM_RAM];
 
-unsigned int globaltime = 0;   // Instante global de tiempo
-unsigned int numfallos  = 0;   // Número de fallos de caché
+unsigned int globaltime = 0; // Instante global de tiempo
+unsigned int numfallos = 0;  // Número de fallos de caché
 
-char texto[101];               // Texto leído carácter a carácter (máx. 100 chars)
-int  idx_texto = 0;            // Posición actual en texto
+char texto[101];   // Texto leído carácter a carácter (máx. 100 chars)
+int idx_texto = 0; // Posición actual en texto
 
 /* Prototipos de las funciones obligatorias */
 void LimpiarCACHE(T_CACHE_LINE tbl[NUM_FILAS]);
@@ -43,11 +52,14 @@ void TratarFallo(T_CACHE_LINE *tbl, unsigned char *MRAM, int ETQ,
  * - ETQ = 0xFF
  * - Datos = 0x23
  */
-void LimpiarCACHE(T_CACHE_LINE tbl[NUM_FILAS]) {
-    for (int i = 0; i < NUM_FILAS; i++) {
-        tbl[i].ETQ = 0xFF;  // Valor "inválido" de etiqueta
-        for (int j = 0; j < TAM_LINEA; j++) {
-            tbl[i].Data[j] = 0x23;  // Relleno según enunciado
+void LimpiarCACHE(T_CACHE_LINE tbl[NUM_FILAS])
+{
+    for (int i = 0; i < NUM_FILAS; i++)
+    {
+        tbl[i].ETQ = 0xFF; // Valor "inválido" de etiqueta
+        for (int j = 0; j < TAM_LINEA; j++)
+        {
+            tbl[i].Data[j] = 0x23; // Relleno según enunciado
         }
     }
 }
@@ -56,14 +68,17 @@ void LimpiarCACHE(T_CACHE_LINE tbl[NUM_FILAS]) {
  * Los datos se imprimen de izquierda a derecha de mayor a menor peso:
  * byte 15 ... byte 0
  */
-void VolcarCACHE(T_CACHE_LINE *tbl) {
+void VolcarCACHE(T_CACHE_LINE *tbl)
+{
     printf("\n---------------- CONTENIDO DE LA CACHE ----------------\n");
     printf("Linea | ETQ | Datos (byte15 ... byte0)\n");
     printf("-------------------------------------------------------\n");
 
-    for (int i = 0; i < NUM_FILAS; i++) {
+    for (int i = 0; i < NUM_FILAS; i++)
+    {
         printf(" %2d   | %02X | ", i, tbl[i].ETQ);
-        for (int j = TAM_LINEA - 1; j >= 0; j--) {
+        for (int j = TAM_LINEA - 1; j >= 0; j--)
+        {
             printf("%02X ", tbl[i].Data[j]);
         }
         printf("\n");
@@ -72,8 +87,9 @@ void VolcarCACHE(T_CACHE_LINE *tbl) {
 }
 
 void ParsearDireccion(unsigned int addr, int *ETQ, int *palabra,
-                      int *linea, int *bloque) {
-    /* 
+                      int *linea, int *bloque)
+{
+    /*
      * Formato de la dirección de 12 bits:
      *  [ ETQ (5 bits) ][ linea (3 bits) ][ palabra (4 bits) ]
      *
@@ -83,20 +99,21 @@ void ParsearDireccion(unsigned int addr, int *ETQ, int *palabra,
      */
 
     // 4 bits menos significativos
-    *palabra = addr & 0xF;          // 0xF = 0000 1111
+    *palabra = addr & 0xF; // 0xF = 0000 1111
 
     // Siguientes 3 bits (desplazamos 4 y nos quedamos con 0x7 = 0000 0111)
-    *linea   = (addr >> 4) & 0x7;
+    *linea = (addr >> 4) & 0x7;
 
     // 5 bits más altos (desplazamos 7 y nos quedamos con 0x1F = 0001 1111)
-    *ETQ     = (addr >> 7) & 0x1F;
+    *ETQ = (addr >> 7) & 0x1F;
 
     // Número de bloque (cada bloque = 16 bytes)
-    *bloque  = addr >> 4;           // addr / 16
+    *bloque = addr >> 4; // addr / 16
 }
 
 void TratarFallo(T_CACHE_LINE *tbl, unsigned char *MRAM, int ETQ,
-                 int linea, int bloque) {
+                 int linea, int bloque)
+{
     // Mensaje indicando qué bloque se carga y en qué línea
     printf("   Cargando bloque %02X en la linea %02X\n", bloque, linea);
 
@@ -107,7 +124,8 @@ void TratarFallo(T_CACHE_LINE *tbl, unsigned char *MRAM, int ETQ,
     tbl[linea].ETQ = (unsigned char)ETQ;
 
     // Copiamos TAM_LINEA bytes desde MRAM a la línea de caché
-    for (int i = 0; i < TAM_LINEA; i++) {
+    for (int i = 0; i < TAM_LINEA; i++)
+    {
         tbl[linea].Data[i] = MRAM[base + i];
     }
 
@@ -117,27 +135,29 @@ void TratarFallo(T_CACHE_LINE *tbl, unsigned char *MRAM, int ETQ,
 
 /* -------- Programa principal -------- */
 
-int main(void) {
+int main(void)
+{
     FILE *f_ram = NULL;
     FILE *f_acc = NULL;
     FILE *f_cache = NULL;
 
-    unsigned int addr;                 // Dirección leída en hex
-    int ETQ, palabra, linea, bloque;   // Campos de la dirección
-    int num_accesos = 0;               // Nº total de accesos
+    unsigned int addr;               // Dirección leída en hex
+    int ETQ, palabra, linea, bloque; // Campos de la dirección
+    int num_accesos = 0;             // Nº total de accesos
 
     // Inicializamos variables globales relacionadas con la simulación
     globaltime = 0;
-    numfallos  = 0;
-    idx_texto  = 0;
-    texto[0]   = '\0';
+    numfallos = 0;
+    idx_texto = 0;
+    texto[0] = '\0';
 
     // 1) Inicializar caché
     LimpiarCACHE(CACHE);
 
     // 2) Leer RAM desde CONTENTS_RAM.bin en Simul_RAM
     f_ram = fopen(FICH_RAM, "rb");
-    if (f_ram == NULL) {
+    if (f_ram == NULL)
+    {
         perror("Error abriendo CONTENTS_RAM.bin");
         return -1;
     }
@@ -145,37 +165,42 @@ int main(void) {
     size_t leidos = fread(Simul_RAM, 1, TAM_RAM, f_ram);
     fclose(f_ram);
 
-    if (leidos != TAM_RAM) {
+    if (leidos != TAM_RAM)
+    {
         fprintf(stderr,
-                "Error: se han leido %zu bytes de RAM, se esperaban %d\n",
-                leidos, TAM_RAM);
+                "Error: se han leido %lu bytes de RAM, se esperaban %d\n",
+                (unsigned long)leidos, TAM_RAM);
         return -1;
     }
 
     // 3) Abrir accesos_memoria.txt
     f_acc = fopen(FICH_ACCESOS, "r");
-    if (f_acc == NULL) {
+    if (f_acc == NULL)
+    {
         perror("Error abriendo accesos_memoria.txt");
         return -1;
     }
 
     // 4) Bucle principal de simulación
-    while (fscanf(f_acc, "%x", &addr) == 1) {
+    while (fscanf(f_acc, "%x", &addr) == 1)
+    {
         num_accesos++;
 
         // Descomponer la dirección en ETQ, palabra, linea y bloque
         ParsearDireccion(addr, &ETQ, &palabra, &linea, &bloque);
 
         // Comprobación básica de rango (por si acaso)
-        if (linea < 0 || linea >= NUM_FILAS || palabra < 0 || palabra >= TAM_LINEA) {
+        if (linea < 0 || linea >= NUM_FILAS || palabra < 0 || palabra >= TAM_LINEA)
+        {
             fprintf(stderr, "Direccion fuera de rango: %04X\n", addr);
             continue;
         }
 
-        int T = globaltime;  // Instante actual
+        int T = globaltime; // Instante actual
 
         // ¿HIT o MISS?
-        if (CACHE[linea].ETQ != (unsigned char)ETQ) {
+        if (CACHE[linea].ETQ != (unsigned char)ETQ)
+        {
             // FALLO DE CACHÉ
             numfallos++;
 
@@ -184,7 +209,9 @@ int main(void) {
 
             // Cargar el bloque desde RAM y actualizar etiqueta + tiempo
             TratarFallo(CACHE, Simul_RAM, ETQ, linea, bloque);
-        } else {
+        }
+        else
+        {
             // ACIERTO DE CACHÉ
             unsigned char dato = CACHE[linea].Data[palabra];
 
@@ -192,9 +219,10 @@ int main(void) {
                    T, addr, ETQ, linea, palabra, dato);
 
             // Construimos el texto con los caracteres leídos
-            if (idx_texto < 100) {
+            if (idx_texto < 100)
+            {
                 texto[idx_texto++] = (char)dato;
-                texto[idx_texto] = '\0';  // mantenemos terminación en '\0'
+                texto[idx_texto] = '\0'; // mantenemos terminación en '\0'
             }
         }
 
@@ -213,23 +241,26 @@ int main(void) {
     printf("Numero de fallos de cache: %u\n", numfallos);
 
     double tiempo_medio = (num_accesos > 0)
-                          ? (double)globaltime / (double)num_accesos
-                          : 0.0;
+                              ? (double)globaltime / (double)num_accesos
+                              : 0.0;
 
     printf("Tiempo medio de acceso: %.2f\n", tiempo_medio);
     printf("Texto leido: %s\n", texto);
 
     // 6) Volcado de la caché a CONTENTS_CACHE.bin
     f_cache = fopen(FICH_CACHE, "wb");
-    if (f_cache == NULL) {
+    if (f_cache == NULL)
+    {
         perror("Error abriendo CONTENTS_CACHE.bin para escritura");
         return -1;
     }
 
     // El byte 0 del fichero es el byte 0 de la línea 0, etc.
-    for (int i = 0; i < NUM_FILAS; i++) {
+    for (int i = 0; i < NUM_FILAS; i++)
+    {
         size_t escritos = fwrite(CACHE[i].Data, 1, TAM_LINEA, f_cache);
-        if (escritos != TAM_LINEA) {
+        if (escritos != TAM_LINEA)
+        {
             fprintf(stderr, "Error escribiendo linea %d en CONTENTS_CACHE.bin\n", i);
             fclose(f_cache);
             return -1;
@@ -240,4 +271,3 @@ int main(void) {
 
     return 0;
 }
-
